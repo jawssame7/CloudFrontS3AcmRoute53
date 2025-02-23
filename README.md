@@ -14,6 +14,16 @@ DOMAIN_NAME=example.com
 
 ### 前提
 Route53のホストゾーンが設定されている
+AWS CLI、AWS CDKがインストールされている
+
+```
+AWS CLI インストール
+https://docs.aws.amazon.com/ja_jp/cli/latest/userguide/getting-started-install.html
+
+AWS CDK インストール
+npm install -g aws-cdk
+```
+
 
 ### 使用方法
 
