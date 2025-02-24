@@ -2,14 +2,21 @@
 
 参考したSource: https://github.com/rednes/cdk-cloudfront-cross-region-sample/blob/use-cdk-remote-stack/lib/cloudfront-stack.ts
 
+### 設定
+
+`.env.examle`をコピーして`.env`にファイル名を変更して使用
+
+#### .envの設定内容
+
 ``` 
 .env
-CDK_DEFAULT_ACCOUNT=123456789876
-CDK_ACM_REGION=us-east-1
-CDK_DEFAULT_REGION=ap-northeast-1
-HOST_NAME=test
-DOMAIN_NAME=example.com
-
+CDK_DEFAULT_ACCOUNT=123456789876  <- aws accountId
+CDK_ACM_REGION=us-east-1          <- ACM,Rambda@Edge作成リージョン
+CDK_DEFAULT_REGION=ap-northeast-1 <- S3バケット作成リージョン
+HOST_NAME=test                    <- ホスト名
+DOMAIN_NAME=example.com           <- ドメイン名
+BASIC_AUTH_USER=test              <- ベーシック認証ユーザー
+BASIC_AUTH_PASSWORD=passw         <- ベーシック認証パスワード
 ```
 
 ### 前提
@@ -58,5 +65,21 @@ Tips: キャッシュが残っていそうなときは、以下を実行して�
 ```
 rm -rf cdk.context.json
 rm -rf cdk.out
+
+```
+
+### Tips
+
+ParameterAlreadyExists エラーが出たとき
+（何度も`deploy --all`,`destroy --all`を繰り返すと発生することがある）
+
+> ❌  CertStack failed: _ToolkitError: The stack named CertStack failed creation, it may need to be manually deleted from the AWS console: ROLLBACK_COMPLETE: Received response status > [FAILED] from custom resource. Message returned: ParameterAlreadyExists: The parameter already exists. To overwrite this value, set the overwrite option in the request to true.
+
+```
+ssmのparameterを一覧表示する
+aws ssm get-parameters-by-path --path '/' --recursive
+
+特定のparameterを削除する
+aws ssm delete-parameter --name キー
 
 ```
