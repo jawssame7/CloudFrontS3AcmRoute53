@@ -19,6 +19,7 @@ export interface SiteCloudFrontProps {
   subDomain: string
   authUser: string
   authPassword: string
+  enableBasicAuth?: boolean
 }
 
 export class SiteCloudFrontConstruct extends Construct {
@@ -28,39 +29,47 @@ export class SiteCloudFrontConstruct extends Construct {
   constructor(scope: Construct, id: string, props: SiteCloudFrontProps) {
     super(scope, id)
 
-    // Basic 認証のユーザー名とパスワード
-    const username = 'user'
-    const password = 'pass'
+    // ベーシック認証の設定（デフォルトはfalse）
+    const enableBasicAuth = props.enableBasicAuth ?? false
+    let functionAssociations: cloudfront.FunctionAssociation[] = []
+    if (enableBasicAuth) {
+      // Base64 エンコード
+      const base64Encoded = Buffer.from(`${props.authUser}:${props.authPassword}`).toString('base64')
 
-    // Base64 エンコード
-    const base64Encoded = Buffer.from(`${props.authUser}:${props.authPassword}`).toString('base64')
+      // CloudFront Function の作成
+      const basicAuthFunction = new cloudfront.Function(this, 'BasicAuthFunction', {
+        functionName: 'BasicAuthFunction',
+        code: cloudfront.FunctionCode.fromInline(`
+          function handler(event) {
+            var request = event.request;
+            var headers = request.headers;
 
-    // CloudFront Function の作成
-    const basicAuthFunction = new cloudfront.Function(this, 'BasicAuthFunction', {
-      functionName: 'BasicAuthFunction',
-      code: cloudfront.FunctionCode.fromInline(`
-        function handler(event) {
-          var request = event.request;
-          var headers = request.headers;
+            // echo -n user:pass | base64
+            var authString = "Basic ${base64Encoded}";
 
-          // echo -n user:pass | base64
-          var authString = "Basic ${base64Encoded}";
+            if (
+              typeof headers.authorization === "undefined" ||
+              headers.authorization.value !== authString
+            ) {
+              return {
+                statusCode: 401,
+                statusDescription: "Unauthorized",
+                headers: { "www-authenticate": { value: "Basic" } }
+              };
+            }
 
-          if (
-            typeof headers.authorization === "undefined" ||
-            headers.authorization.value !== authString
-          ) {
-            return {
-              statusCode: 401,
-              statusDescription: "Unauthorized",
-              headers: { "www-authenticate": { value: "Basic" } }
-            };
+            return request;
           }
+        `)
+      })
 
-          return request;
+      functionAssociations = [
+        {
+          function: basicAuthFunction,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST
         }
-      `)
-    })
+      ]
+    }
 
     // キャッシュポリシーの作成（短めの TTL 設定）
     const cachePolicy = new cloudfront.CachePolicy(this, 'CustomCachePolicy', {
@@ -77,12 +86,7 @@ export class SiteCloudFrontConstruct extends Construct {
         origin: cloudfrontOrigins.S3BucketOrigin.withOriginAccessControl(props.siteBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cachePolicy,
-        functionAssociations: [
-          {
-            function: basicAuthFunction,
-            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST
-          }
-        ],
+        functionAssociations: functionAssociations,
         //Lambda@Edge関数との紐付け設定
         edgeLambdas: props.lambdaFunction
           ? [
